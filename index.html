@@ -463,6 +463,21 @@
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
     }
+    function openFaaCndPdfByAirport(icaoOrCode) {
+    const code = normalizeAirportCode(icaoOrCode);
+    const url = `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${code}`;
+    window.open(url, '_blank');
+  }
+
+  function normalizeAirportCode(value) {
+    let code = String(value || '').trim().toUpperCase();
+
+    if (code.length === 4 && code.startsWith('K')) {
+      code = code.substring(1);
+    }
+
+    return code;
+  }
   </script>
 </body>
 </html>
