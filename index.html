@@ -61,6 +61,7 @@
       border-radius: 12px;
       font-size: 16px;
       outline: none;
+      text-transform: uppercase;
     }
 
     .search-box input:focus {
@@ -257,9 +258,32 @@
 
   <script>
     /********************************************************
-     * 여기에 네 Apps Script Web App URL 입력
+     * Apps Script Web App URL
      ********************************************************/
     const API_URL = 'https://script.google.com/macros/s/AKfycbzdN9MnsvssuVP6NSoxpFOUD7yycV2AJ47x_2Hz_fcsxss2cQGe0egW88R0hDuTf37j/exec';
+
+    /********************************************************
+     * FAA CND 사이트는 대부분 3-letter airportCode 기준.
+     * 4-letter ICAO 입력 시 3-letter FAA/IATA 코드로 변환.
+     *
+     * 일반 미국 본토: KPIT -> PIT
+     * 예외 지역: PHNL -> HNL, PGUM -> GUM, PANC -> ANC 등
+     ********************************************************/
+    const ICAO_TO_FAA_CODE = {
+      PANC: 'ANC',
+      PAFA: 'FAI',
+      PHNL: 'HNL',
+      PHOG: 'OGG',
+      PHKO: 'KOA',
+      PHLI: 'LIH',
+      PHTO: 'ITO',
+      PGUM: 'GUM',
+      PGRO: 'ROP',
+      PGSN: 'SPN',
+      PGWT: 'TIQ',
+      PTRO: 'ROR',
+      PTPN: 'PNI'
+    };
 
     let allAirports = [];
     let filteredAirports = [];
@@ -306,8 +330,19 @@
         }
 
         allAirports = Array.isArray(data.airports) ? data.airports : [];
-        filteredAirports = allAirports;
 
+        // 프론트에서 표시용 ICAO 코드를 다시 정리
+        allAirports = allAirports.map(airport => {
+          const airportCode = String(airport.airportCode || '').trim().toUpperCase();
+
+          return {
+            ...airport,
+            airportCode,
+            faaIcaoCode: getDisplayIcaoCode(airportCode)
+          };
+        });
+
+        filteredAirports = allAirports;
         renderAirports(filteredAirports);
 
       } catch (err) {
@@ -344,7 +379,7 @@
         card.onclick = () => openAirportPdf(airport);
 
         const code = airport.airportCode || '';
-        const icao = airport.faaIcaoCode || toIcaoCode(code);
+        const icao = airport.faaIcaoCode || getDisplayIcaoCode(code);
         const name = airport.airportName || '';
 
         card.innerHTML = `
@@ -362,47 +397,65 @@
       airportGrid.appendChild(fragment);
     }
 
+    /********************************************************
+     * 검색 로직
+     *
+     * PIT 입력  -> airportCode PIT 정확 검색
+     * KPIT 입력 -> KPIT를 PIT로 변환해서 정확 검색
+     * 공항명 airportName은 검색 대상에서 제외
+     ********************************************************/
     function filterAirports(keyword) {
-  const normalized = normalizeAirportCode(keyword);
+      const inputCode = cleanAirportInput(keyword);
+      const targetCode = normalizeAirportCode(inputCode);
 
-  filteredAirports = allAirports.filter(airport => {
-    const airportCode = String(airport.airportCode || '').toUpperCase(); // PIT
-    const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase(); // KPIT
+      if (!inputCode) {
+        filteredAirports = allAirports;
+        renderAirports(filteredAirports);
+        return;
+      }
 
-    return (
-      airportCode.includes(normalized) ||
-      faaIcaoCode.includes(normalized) ||
-      faaIcaoCode.includes('K' + normalized)
-    );
-  });
+      filteredAirports = allAirports.filter(airport => {
+        const airportCode = String(airport.airportCode || '').toUpperCase();
+        const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase();
 
-  renderAirports(filteredAirports);
-}
-   function searchAirport() {
-  const keyword = searchInput.value.trim();
+        // 3-letter 또는 4-letter 입력은 정확 매칭만
+        if (inputCode.length === 3 || inputCode.length === 4) {
+          return airportCode === targetCode || faaIcaoCode === inputCode;
+        }
 
-  if (!keyword) {
-    resetSearch();
-    return;
-  }
+        // 1~2글자 입력은 코드 기준 부분 검색
+        return airportCode.includes(targetCode) || faaIcaoCode.includes(inputCode);
+      });
 
-  const targetCode = normalizeAirportCode(keyword);
-  const targetIcao = targetCode.length === 3 ? 'K' + targetCode : targetCode;
+      renderAirports(filteredAirports);
+    }
 
-  const exactMatch = allAirports.find(airport => {
-    const airportCode = String(airport.airportCode || '').toUpperCase();
-    const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase();
+    function searchAirport() {
+      const keyword = searchInput.value.trim();
 
-    return airportCode === targetCode || faaIcaoCode === targetIcao;
-  });
+      if (!keyword) {
+        resetSearch();
+        return;
+      }
 
-  if (exactMatch) {
-    filteredAirports = [exactMatch];
-    renderAirports(filteredAirports);
-  } else {
-    filterAirports(keyword);
-  }
-}
+      const inputCode = cleanAirportInput(keyword);
+      const targetCode = normalizeAirportCode(inputCode);
+
+      const exactMatch = allAirports.find(airport => {
+        const airportCode = String(airport.airportCode || '').toUpperCase();
+        const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase();
+
+        return airportCode === targetCode || faaIcaoCode === inputCode;
+      });
+
+      if (exactMatch) {
+        filteredAirports = [exactMatch];
+        renderAirports(filteredAirports);
+      } else {
+        filterAirports(keyword);
+      }
+    }
+
     function resetSearch() {
       searchInput.value = '';
       filteredAirports = allAirports;
@@ -411,35 +464,66 @@
     }
 
     function openAirportPdf(airport) {
-      const pdfUrl = airport.cndPdfUrl;
+      const airportCode = String(airport.airportCode || '').trim().toUpperCase();
 
-      if (!pdfUrl) {
-        alert('PDF URL이 없습니다.');
+      if (!airportCode) {
+        alert('공항코드가 없습니다.');
         return;
       }
+
+      const pdfUrl = airport.cndPdfUrl ||
+        `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${encodeURIComponent(airportCode)}`;
 
       window.open(pdfUrl, '_blank');
     }
 
-    function normalizeAirportCode(value) {
-      let code = String(value || '').trim().toUpperCase();
+    function openFaaCndPdfByAirport(icaoOrCode) {
+      const code = normalizeAirportCode(icaoOrCode);
+      const url = `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${encodeURIComponent(code)}`;
+      window.open(url, '_blank');
+    }
 
-      // 미국 ICAO 코드 KPIT, KJFK, KATL 등은 FAA CND에서 PIT, JFK, ATL 형식 사용
-      if (code.length === 4 && code.startsWith('K')) {
-        code = code.substring(1);
+    function cleanAirportInput(value) {
+      return String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '');
+    }
+
+    function normalizeAirportCode(value) {
+      const code = cleanAirportInput(value);
+
+      // PHNL, PGUM, PANC 등 예외 ICAO 처리
+      if (ICAO_TO_FAA_CODE[code]) {
+        return ICAO_TO_FAA_CODE[code];
       }
 
+      // 일반 미국 ICAO 코드 KPIT, KJFK, KATL 등은 PIT, JFK, ATL로 변환
+      if (code.length === 4 && code.startsWith('K')) {
+        return code.substring(1);
+      }
+
+      // 이미 3-letter이면 그대로 반환
       return code;
     }
 
-    function toIcaoCode(code) {
-      const airportCode = String(code || '').trim().toUpperCase();
+    function getDisplayIcaoCode(airportCode) {
+      const code = String(airportCode || '').trim().toUpperCase();
 
-      if (airportCode.length === 3) {
-        return 'K' + airportCode;
+      // 예외 ICAO 역변환
+      const matchedException = Object.entries(ICAO_TO_FAA_CODE)
+        .find(([icao, faaCode]) => faaCode === code);
+
+      if (matchedException) {
+        return matchedException[0];
       }
 
-      return airportCode;
+      // 일반 미국 본토 공항은 K + 3-letter로 표시
+      if (code.length === 3) {
+        return 'K' + code;
+      }
+
+      return code;
     }
 
     function showError(message) {
@@ -460,21 +544,6 @@
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
     }
-    function openFaaCndPdfByAirport(icaoOrCode) {
-    const code = normalizeAirportCode(icaoOrCode);
-    const url = `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${code}`;
-    window.open(url, '_blank');
-  }
-
-  function normalizeAirportCode(value) {
-    let code = String(value || '').trim().toUpperCase();
-
-    if (code.length === 4 && code.startsWith('K')) {
-      code = code.substring(1);
-    }
-
-    return code;
-  }
   </script>
 </body>
 </html>
