@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAA CND Airport Diagram</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, "Noto Sans KR", sans-serif;
+      background: #f4f6f8;
+      color: #1f2937;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0f172a, #1e3a8a);
+      color: white;
+      padding: 28px 18px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: -0.5px;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 22px 14px 40px;
+    }
+
+    .search-box {
+      background: white;
+      padding: 16px;
+      border-radius: 16px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+      margin-bottom: 18px;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      font-size: 16px;
+      outline: none;
+    }
+
+    .search-box input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+
+    .search-box button {
+      border: none;
+      border-radius: 12px;
+      padding: 13px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      font-weight: 700;
+    }
+
+    .search-box button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .summary {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin: 14px 2px 18px;
+      font-size: 14px;
+      color: #4b5563;
+      flex-wrap: wrap;
+    }
+
+    .status {
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .airport-card {
+      background: white;
+      border-radius: 16px;
+      padding: 15px 13px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      border: 1px solid transparent;
+      min-height: 112px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .airport-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.13);
+      border-color: #2563eb;
+    }
+
+    .airport-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: 900;
+      font-size: 17px;
+      margin-bottom: 10px;
+    }
+
+    .airport-code {
+      font-size: 18px;
+      font-weight: 900;
+      color: #111827;
+      margin-bottom: 5px;
+    }
+
+    .airport-icao {
+      font-size: 12px;
+      color: #2563eb;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .airport-name {
+      font-size: 12px;
+      color: #4b5563;
+      line-height: 1.35;
+      word-break: keep-all;
+    }
+
+    .empty {
+      background: white;
+      padding: 24px;
+      text-align: center;
+      border-radius: 16px;
+      color: #6b7280;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
+    }
+
+    .loading {
+      background: white;
+      padding: 24px;
+      text-align: center;
+      border-radius: 16px;
+      color: #374151;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
+    }
+
+    .error {
+      background: #fef2f2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+      padding: 16px;
+      border-radius: 16px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    .footer-note {
+      margin-top: 22px;
+      font-size: 12px;
+      color: #6b7280;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 640px) {
+      header h1 {
+        font-size: 22px;
+      }
+
+      .search-box {
+        grid-template-columns: 1fr;
+      }
+
+      .grid {
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      }
+
+      .airport-card {
+        min-height: 105px;
+        padding: 13px 11px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>FAA CND Airport Diagram</h1>
+    <p>FAA Construction Notice Diagram / Airport Restriction Graphic PDF</p>
+  </header>
+
+  <main class="container">
+    <section class="search-box">
+      <input
+        id="searchInput"
+        type="text"
+        placeholder="공항코드 입력 예: KPIT, PIT, KJFK, JFK"
+        autocomplete="off"
+      />
+      <button onclick="searchAirport()">검색</button>
+      <button class="secondary" onclick="resetSearch()">전체보기</button>
+    </section>
+
+    <div id="errorBox" class="error"></div>
+
+    <section class="summary">
+      <div>
+        <span class="status" id="statusText">FAA CND 공항 리스트 불러오는 중...</span>
+      </div>
+      <div id="countText"></div>
+    </section>
+
+    <section id="airportGrid" class="grid">
+      <div class="loading">Loading...</div>
+    </section>
+
+    <div class="footer-note">
+      FAA CND 리스트에 포함된 공항만 표시됩니다.<br />
+      카드를 클릭하면 FAA 그래픽 PDF가 새 창으로 열립니다.
+    </div>
+  </main>
+
+  <script>
+    /********************************************************
+     * 여기에 네 Apps Script Web App URL 입력
+     ********************************************************/
+    const API_URL = 'https://script.google.com/macros/s/여기에_네_AppsScript_URL/exec';
+
+    let allAirports = [];
+    let filteredAirports = [];
+
+    const searchInput = document.getElementById('searchInput');
+    const airportGrid = document.getElementById('airportGrid');
+    const statusText = document.getElementById('statusText');
+    const countText = document.getElementById('countText');
+    const errorBox = document.getElementById('errorBox');
+
+    document.addEventListener('DOMContentLoaded', loadAirportList);
+
+    searchInput.addEventListener('input', () => {
+      const keyword = searchInput.value.trim();
+
+      if (!keyword) {
+        filteredAirports = allAirports;
+        renderAirports(filteredAirports);
+        return;
+      }
+
+      filterAirports(keyword);
+    });
+
+    searchInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        searchAirport();
+      }
+    });
+
+    async function loadAirportList() {
+      try {
+        hideError();
+
+        airportGrid.innerHTML = '<div class="loading">FAA CND 공항 리스트를 불러오는 중입니다...</div>';
+        statusText.textContent = 'FAA CND 공항 리스트 불러오는 중...';
+        countText.textContent = '';
+
+        const response = await fetch(`${API_URL}?action=list`);
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error(data.message || '공항 리스트를 불러오지 못했습니다.');
+        }
+
+        allAirports = Array.isArray(data.airports) ? data.airports : [];
+        filteredAirports = allAirports;
+
+        renderAirports(filteredAirports);
+
+      } catch (err) {
+        showError('FAA CND 공항 리스트를 불러오지 못했습니다. Apps Script URL 또는 배포 권한을 확인하세요.');
+        airportGrid.innerHTML = '<div class="empty">데이터 로드 실패</div>';
+        statusText.textContent = '로드 실패';
+        countText.textContent = '';
+        console.error(err);
+      }
+    }
+
+    function renderAirports(airports) {
+      airportGrid.innerHTML = '';
+
+      const totalCount = allAirports.length;
+      const displayCount = airports.length;
+
+      statusText.textContent = displayCount === totalCount
+        ? '전체 FAA CND 공항 리스트'
+        : '검색 결과';
+
+      countText.textContent = `${displayCount} / ${totalCount}개 표시`;
+
+      if (!airports.length) {
+        airportGrid.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>';
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+
+      airports.forEach(airport => {
+        const card = document.createElement('article');
+        card.className = 'airport-card';
+        card.onclick = () => openAirportPdf(airport);
+
+        const code = airport.airportCode || '';
+        const icao = airport.faaIcaoCode || toIcaoCode(code);
+        const name = airport.airportName || '';
+
+        card.innerHTML = `
+          <div>
+            <div class="airport-icon">✈</div>
+            <div class="airport-code">${escapeHtml(code)}</div>
+            <div class="airport-icao">${escapeHtml(icao)}</div>
+            <div class="airport-name">${escapeHtml(name)}</div>
+          </div>
+        `;
+
+        fragment.appendChild(card);
+      });
+
+      airportGrid.appendChild(fragment);
+    }
+
+    function filterAirports(keyword) {
+      const normalized = normalizeAirportCode(keyword);
+      const rawKeyword = keyword.trim().toUpperCase();
+
+      filteredAirports = allAirports.filter(airport => {
+        const airportCode = String(airport.airportCode || '').toUpperCase();
+        const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase();
+        const airportName = String(airport.airportName || '').toUpperCase();
+
+        return (
+          airportCode.includes(normalized) ||
+          faaIcaoCode.includes(rawKeyword) ||
+          airportName.includes(rawKeyword)
+        );
+      });
+
+      renderAirports(filteredAirports);
+    }
+
+    function searchAirport() {
+      const keyword = searchInput.value.trim();
+
+      if (!keyword) {
+        resetSearch();
+        return;
+      }
+
+      const targetCode = normalizeAirportCode(keyword);
+
+      const exactMatch = allAirports.find(airport => {
+        const airportCode = String(airport.airportCode || '').toUpperCase();
+        const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase();
+
+        return airportCode === targetCode || faaIcaoCode === keyword.toUpperCase();
+      });
+
+      if (exactMatch) {
+        filteredAirports = [exactMatch];
+        renderAirports(filteredAirports);
+      } else {
+        filterAirports(keyword);
+      }
+    }
+
+    function resetSearch() {
+      searchInput.value = '';
+      filteredAirports = allAirports;
+      renderAirports(filteredAirports);
+      hideError();
+    }
+
+    function openAirportPdf(airport) {
+      const pdfUrl = airport.cndPdfUrl;
+
+      if (!pdfUrl) {
+        alert('PDF URL이 없습니다.');
+        return;
+      }
+
+      window.open(pdfUrl, '_blank');
+    }
+
+    function normalizeAirportCode(value) {
+      let code = String(value || '').trim().toUpperCase();
+
+      // 미국 ICAO 코드 KPIT, KJFK, KATL 등은 FAA CND에서 PIT, JFK, ATL 형식 사용
+      if (code.length === 4 && code.startsWith('K')) {
+        code = code.substring(1);
+      }
+
+      return code;
+    }
+
+    function toIcaoCode(code) {
+      const airportCode = String(code || '').trim().toUpperCase();
+
+      if (airportCode.length === 3) {
+        return 'K' + airportCode;
+      }
+
+      return airportCode;
+    }
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.style.display = 'block';
+    }
+
+    function hideError() {
+      errorBox.textContent = '';
+      errorBox.style.display = 'none';
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+  </script>
+</body>
+</html>
