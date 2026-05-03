@@ -363,49 +363,46 @@
     }
 
     function filterAirports(keyword) {
-      const normalized = normalizeAirportCode(keyword);
-      const rawKeyword = keyword.trim().toUpperCase();
+  const normalized = normalizeAirportCode(keyword);
 
-      filteredAirports = allAirports.filter(airport => {
-        const airportCode = String(airport.airportCode || '').toUpperCase();
-        const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase();
-        const airportName = String(airport.airportName || '').toUpperCase();
+  filteredAirports = allAirports.filter(airport => {
+    const airportCode = String(airport.airportCode || '').toUpperCase(); // PIT
+    const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase(); // KPIT
 
-        return (
-          airportCode.includes(normalized) ||
-          faaIcaoCode.includes(rawKeyword) ||
-          airportName.includes(rawKeyword)
-        );
-      });
+    return (
+      airportCode.includes(normalized) ||
+      faaIcaoCode.includes(normalized) ||
+      faaIcaoCode.includes('K' + normalized)
+    );
+  });
 
-      renderAirports(filteredAirports);
-    }
+  renderAirports(filteredAirports);
+}
+   function searchAirport() {
+  const keyword = searchInput.value.trim();
 
-    function searchAirport() {
-      const keyword = searchInput.value.trim();
+  if (!keyword) {
+    resetSearch();
+    return;
+  }
 
-      if (!keyword) {
-        resetSearch();
-        return;
-      }
+  const targetCode = normalizeAirportCode(keyword);
+  const targetIcao = targetCode.length === 3 ? 'K' + targetCode : targetCode;
 
-      const targetCode = normalizeAirportCode(keyword);
+  const exactMatch = allAirports.find(airport => {
+    const airportCode = String(airport.airportCode || '').toUpperCase();
+    const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase();
 
-      const exactMatch = allAirports.find(airport => {
-        const airportCode = String(airport.airportCode || '').toUpperCase();
-        const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase();
+    return airportCode === targetCode || faaIcaoCode === targetIcao;
+  });
 
-        return airportCode === targetCode || faaIcaoCode === keyword.toUpperCase();
-      });
-
-      if (exactMatch) {
-        filteredAirports = [exactMatch];
-        renderAirports(filteredAirports);
-      } else {
-        filterAirports(keyword);
-      }
-    }
-
+  if (exactMatch) {
+    filteredAirports = [exactMatch];
+    renderAirports(filteredAirports);
+  } else {
+    filterAirports(keyword);
+  }
+}
     function resetSearch() {
       searchInput.value = '';
       filteredAirports = allAirports;
