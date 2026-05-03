@@ -463,7 +463,7 @@
       hideError();
     }
 
-   function openAirportPdf(airport) {
+  function openAirportPdf(airport) {
   const airportCode = String(airport.airportCode || '').trim().toUpperCase();
 
   if (!airportCode) {
@@ -474,73 +474,19 @@
   const pdfUrl = airport.cndPdfUrl ||
     `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${encodeURIComponent(airportCode)}`;
 
-  const viewerWindow = window.open('', '_blank');
+  window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+}
+ function openFaaCndPdfByAirport(icaoOrCode) {
+  const code = normalizeAirportCode(icaoOrCode);
 
-  if (!viewerWindow) {
-    alert('팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요.');
+  if (!code) {
+    alert('공항코드가 없습니다.');
     return;
   }
 
-  viewerWindow.document.write(`
-    <!DOCTYPE html>
-    <html lang="ko">
-    <head>
-      <meta charset="UTF-8">
-      <title>FAA CND Diagram - ${airportCode}</title>
-      <style>
-        html, body {
-          margin: 0;
-          width: 100%;
-          height: 100%;
-          overflow: hidden;
-          font-family: Arial, sans-serif;
-        }
-
-        .topbar {
-          height: 46px;
-          background: #0f172a;
-          color: white;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0 14px;
-          box-sizing: border-box;
-          font-size: 14px;
-        }
-
-        .topbar a {
-          color: white;
-          text-decoration: none;
-          background: #2563eb;
-          padding: 7px 10px;
-          border-radius: 8px;
-          font-size: 12px;
-        }
-
-        iframe {
-          width: 100%;
-          height: calc(100% - 46px);
-          border: none;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="topbar">
-        <div>FAA CND Diagram - ${airportCode}</div>
-        <a href="${pdfUrl}" target="_blank">FAA 원본 열기</a>
-      </div>
-      <iframe src="${pdfUrl}"></iframe>
-    </body>
-    </html>
-  `);
-
-  viewerWindow.document.close();
+  const url = `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${encodeURIComponent(code)}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
-    function openFaaCndPdfByAirport(icaoOrCode) {
-      const code = normalizeAirportCode(icaoOrCode);
-      const url = `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${encodeURIComponent(code)}`;
-      window.open(url, '_blank');
-    }
 
     function cleanAirportInput(value) {
       return String(value || '')
