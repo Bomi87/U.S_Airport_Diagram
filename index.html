@@ -607,13 +607,13 @@
    (function waitForPortalAuth() {
   // 1) 포털에서 이미 승인된 세션이면 먼저 앱 시작
   if (sessionStorage.getItem("portalApproved") === "true") {
-    startFboAppAfterAuth();
+    startFaaCndAppAfterAuth();
   }
 
   // 2) common-auth.js가 최종 승인 확인하면 통과
   if (window.CURRENT_PORTAL_USER) {
     sessionStorage.setItem("portalApproved", "true");
-    startFboAppAfterAuth();
+    startFaaCndAppAfterAuth();
     return;
   }
 
