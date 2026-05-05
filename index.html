@@ -604,14 +604,21 @@
       loadAirportList();
     }
 
-    (function waitForPortalAuth() {
-      if (window.CURRENT_PORTAL_USER) {
-        startFaaCndAppAfterAuth();
-        return;
-      }
+   (function waitForPortalAuth() {
+  // 1) 포털에서 이미 승인된 세션이면 먼저 앱 시작
+  if (sessionStorage.getItem("portalApproved") === "true") {
+    startFboAppAfterAuth();
+  }
 
-      setTimeout(waitForPortalAuth, 200);
-    })();
+  // 2) common-auth.js가 최종 승인 확인하면 통과
+  if (window.CURRENT_PORTAL_USER) {
+    sessionStorage.setItem("portalApproved", "true");
+    startFboAppAfterAuth();
+    return;
+  }
+
+  setTimeout(waitForPortalAuth, 200);
+})();
   </script>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
