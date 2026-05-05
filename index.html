@@ -220,41 +220,58 @@
 </head>
 
 <body>
-  <header>
-    <h1>FAA CND Airport Diagram</h1>
-    <p>FAA Construction Notice Diagram / Airport Restriction Graphic PDF</p>
-  </header>
+  <div id="authScreen" style="
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    background:#f4f7fb;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans KR',Arial,sans-serif;
+    color:#1f2937;
+    font-size:15px;
+    font-weight:700;
+  ">
+    승인 확인 중...
+  </div>
 
-  <main class="container">
-    <section class="search-box">
-      <input
-        id="searchInput"
-        type="text"
-        placeholder="공항코드 입력 예: KPIT, PIT, KJFK, JFK"
-        autocomplete="off"
-      />
-      <button onclick="searchAirport()">검색</button>
-      <button class="secondary" onclick="resetSearch()">전체보기</button>
-    </section>
+  <div id="appRoot" style="display:none;">
+    <header>
+      <h1>FAA CND Airport Diagram</h1>
+      <p>FAA Construction Notice Diagram / Airport Restriction Graphic PDF</p>
+    </header>
 
-    <div id="errorBox" class="error"></div>
+    <main class="container">
+      <section class="search-box">
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="공항코드 입력 예: KPIT, PIT, KJFK, JFK"
+          autocomplete="off"
+        />
+        <button onclick="searchAirport()">검색</button>
+        <button class="secondary" onclick="resetSearch()">전체보기</button>
+      </section>
 
-    <section class="summary">
-      <div>
-        <span class="status" id="statusText">FAA CND 공항 리스트 불러오는 중...</span>
+      <div id="errorBox" class="error"></div>
+
+      <section class="summary">
+        <div>
+          <span class="status" id="statusText">FAA CND 공항 리스트 불러오는 중...</span>
+        </div>
+        <div id="countText"></div>
+      </section>
+
+      <section id="airportGrid" class="grid">
+        <div class="loading">Loading...</div>
+      </section>
+
+      <div class="footer-note">
+        FAA CND 리스트에 포함된 공항만 표시됩니다.<br />
+        카드를 클릭하면 FAA 그래픽 PDF가 새 창으로 열립니다.
       </div>
-      <div id="countText"></div>
-    </section>
-
-    <section id="airportGrid" class="grid">
-      <div class="loading">Loading...</div>
-    </section>
-
-    <div class="footer-note">
-      FAA CND 리스트에 포함된 공항만 표시됩니다.<br />
-      카드를 클릭하면 FAA 그래픽 PDF가 새 창으로 열립니다.
-    </div>
-  </main>
+    </main>
+  </div>
 
   <script>
     /********************************************************
@@ -287,34 +304,24 @@
 
     let allAirports = [];
     let filteredAirports = [];
+    let FAA_CND_APP_STARTED = false;
+    let FAA_CND_EVENTS_BOUND = false;
 
-    const searchInput = document.getElementById('searchInput');
-    const airportGrid = document.getElementById('airportGrid');
-    const statusText = document.getElementById('statusText');
-    const countText = document.getElementById('countText');
-    const errorBox = document.getElementById('errorBox');
-
-    document.addEventListener('DOMContentLoaded', loadAirportList);
-
-    searchInput.addEventListener('input', () => {
-      const keyword = searchInput.value.trim();
-
-      if (!keyword) {
-        filteredAirports = allAirports;
-        renderAirports(filteredAirports);
-        return;
-      }
-
-      filterAirports(keyword);
-    });
-
-    searchInput.addEventListener('keydown', event => {
-      if (event.key === 'Enter') {
-        searchAirport();
-      }
-    });
+    function getEls() {
+      return {
+        searchInput: document.getElementById('searchInput'),
+        airportGrid: document.getElementById('airportGrid'),
+        statusText: document.getElementById('statusText'),
+        countText: document.getElementById('countText'),
+        errorBox: document.getElementById('errorBox')
+      };
+    }
 
     async function loadAirportList() {
+      if (!FAA_CND_APP_STARTED) return;
+
+      const { airportGrid, statusText, countText } = getEls();
+
       try {
         hideError();
 
@@ -331,7 +338,6 @@
 
         allAirports = Array.isArray(data.airports) ? data.airports : [];
 
-        // 프론트에서 표시용 ICAO 코드를 다시 정리
         allAirports = allAirports.map(airport => {
           const airportCode = String(airport.airportCode || '').trim().toUpperCase();
 
@@ -355,6 +361,10 @@
     }
 
     function renderAirports(airports) {
+      if (!FAA_CND_APP_STARTED) return;
+
+      const { airportGrid, statusText, countText } = getEls();
+
       airportGrid.innerHTML = '';
 
       const totalCount = allAirports.length;
@@ -397,14 +407,9 @@
       airportGrid.appendChild(fragment);
     }
 
-    /********************************************************
-     * 검색 로직
-     *
-     * PIT 입력  -> airportCode PIT 정확 검색
-     * KPIT 입력 -> KPIT를 PIT로 변환해서 정확 검색
-     * 공항명 airportName은 검색 대상에서 제외
-     ********************************************************/
     function filterAirports(keyword) {
+      if (!FAA_CND_APP_STARTED) return;
+
       const inputCode = cleanAirportInput(keyword);
       const targetCode = normalizeAirportCode(inputCode);
 
@@ -418,12 +423,10 @@
         const airportCode = String(airport.airportCode || '').toUpperCase();
         const faaIcaoCode = String(airport.faaIcaoCode || '').toUpperCase();
 
-        // 3-letter 또는 4-letter 입력은 정확 매칭만
         if (inputCode.length === 3 || inputCode.length === 4) {
           return airportCode === targetCode || faaIcaoCode === inputCode;
         }
 
-        // 1~2글자 입력은 코드 기준 부분 검색
         return airportCode.includes(targetCode) || faaIcaoCode.includes(inputCode);
       });
 
@@ -431,6 +434,9 @@
     }
 
     function searchAirport() {
+      if (!FAA_CND_APP_STARTED) return;
+
+      const { searchInput } = getEls();
       const keyword = searchInput.value.trim();
 
       if (!keyword) {
@@ -457,36 +463,45 @@
     }
 
     function resetSearch() {
+      if (!FAA_CND_APP_STARTED) return;
+
+      const { searchInput } = getEls();
+
       searchInput.value = '';
       filteredAirports = allAirports;
       renderAirports(filteredAirports);
       hideError();
     }
 
-  function openAirportPdf(airport) {
-  const airportCode = String(airport.airportCode || '').trim().toUpperCase();
+    function openAirportPdf(airport) {
+      if (!FAA_CND_APP_STARTED) return;
 
-  if (!airportCode) {
-    alert('공항코드가 없습니다.');
-    return;
-  }
+      const airportCode = String(airport.airportCode || '').trim().toUpperCase();
 
-  const pdfUrl = airport.cndPdfUrl ||
-    `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${encodeURIComponent(airportCode)}`;
+      if (!airportCode) {
+        alert('공항코드가 없습니다.');
+        return;
+      }
 
-  window.open(pdfUrl, '_blank', 'noopener,noreferrer');
-}
- function openFaaCndPdfByAirport(icaoOrCode) {
-  const code = normalizeAirportCode(icaoOrCode);
+      const pdfUrl = airport.cndPdfUrl ||
+        `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${encodeURIComponent(airportCode)}`;
 
-  if (!code) {
-    alert('공항코드가 없습니다.');
-    return;
-  }
+      window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+    }
 
-  const url = `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${encodeURIComponent(code)}`;
-  window.open(url, '_blank', 'noopener,noreferrer');
-}
+    function openFaaCndPdfByAirport(icaoOrCode) {
+      if (!FAA_CND_APP_STARTED) return;
+
+      const code = normalizeAirportCode(icaoOrCode);
+
+      if (!code) {
+        alert('공항코드가 없습니다.');
+        return;
+      }
+
+      const url = `https://notams.aim.faa.gov/fnsprintservice/cndPdfServlet?airportCode=${encodeURIComponent(code)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
 
     function cleanAirportInput(value) {
       return String(value || '')
@@ -498,24 +513,20 @@
     function normalizeAirportCode(value) {
       const code = cleanAirportInput(value);
 
-      // PHNL, PGUM, PANC 등 예외 ICAO 처리
       if (ICAO_TO_FAA_CODE[code]) {
         return ICAO_TO_FAA_CODE[code];
       }
 
-      // 일반 미국 ICAO 코드 KPIT, KJFK, KATL 등은 PIT, JFK, ATL로 변환
       if (code.length === 4 && code.startsWith('K')) {
         return code.substring(1);
       }
 
-      // 이미 3-letter이면 그대로 반환
       return code;
     }
 
     function getDisplayIcaoCode(airportCode) {
       const code = String(airportCode || '').trim().toUpperCase();
 
-      // 예외 ICAO 역변환
       const matchedException = Object.entries(ICAO_TO_FAA_CODE)
         .find(([icao, faaCode]) => faaCode === code);
 
@@ -523,7 +534,6 @@
         return matchedException[0];
       }
 
-      // 일반 미국 본토 공항은 K + 3-letter로 표시
       if (code.length === 3) {
         return 'K' + code;
       }
@@ -532,11 +542,13 @@
     }
 
     function showError(message) {
+      const { errorBox } = getEls();
       errorBox.textContent = message;
       errorBox.style.display = 'block';
     }
 
     function hideError() {
+      const { errorBox } = getEls();
       errorBox.textContent = '';
       errorBox.style.display = 'none';
     }
@@ -549,6 +561,60 @@
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
     }
+
+    function bindFaaCndEvents() {
+      if (FAA_CND_EVENTS_BOUND) return;
+      FAA_CND_EVENTS_BOUND = true;
+
+      const { searchInput } = getEls();
+
+      searchInput.addEventListener('input', () => {
+        const keyword = searchInput.value.trim();
+
+        if (!keyword) {
+          filteredAirports = allAirports;
+          renderAirports(filteredAirports);
+          return;
+        }
+
+        filterAirports(keyword);
+      });
+
+      searchInput.addEventListener('keydown', event => {
+        if (event.key === 'Enter') {
+          searchAirport();
+        }
+      });
+    }
+
+    function showAuthorizedApp() {
+      const authScreen = document.getElementById('authScreen');
+      const appRoot = document.getElementById('appRoot');
+
+      if (authScreen) authScreen.style.display = 'none';
+      if (appRoot) appRoot.style.display = 'block';
+    }
+
+    function startFaaCndAppAfterAuth() {
+      if (FAA_CND_APP_STARTED) return;
+
+      FAA_CND_APP_STARTED = true;
+      showAuthorizedApp();
+      bindFaaCndEvents();
+      loadAirportList();
+    }
+
+    (function waitForPortalAuth() {
+      if (window.CURRENT_PORTAL_USER) {
+        startFaaCndAppAfterAuth();
+        return;
+      }
+
+      setTimeout(waitForPortalAuth, 200);
+    })();
   </script>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://bomi87.github.io/SK-Aviation-portal/common-auth.js"></script>
 </body>
 </html>
